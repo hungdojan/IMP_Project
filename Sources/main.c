@@ -91,7 +91,7 @@
 
 #define DIGIT_OFF(c_pos) \
 	do { \
-		PTD->PDOR = GPIO_PDOR_PDO(0); \
+	PTD->PDOR = GPIO_PDOR_PDO(0); \
         PTA->PDOR = GPIO_PDOR_PDO(c_pos | 0); \
     } while (0)
 
