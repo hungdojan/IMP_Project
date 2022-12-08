@@ -1,3 +1,17 @@
+/**
+ * @brief Distance measurement using ultrasonic sensor SRF05.
+ *
+ * This program measures distance between object and ultrasonic sensor
+ * and displays it onto 7-segment display. Both sensor and display are
+ * connected to programmable microcontroller MK60.
+ *
+ * This source code serves as submission for a project
+ * of class IMP at FIT, BUT 2022/23
+ *
+ * @author Hung Do
+ * @file main.c
+ * @date 12/08/2022
+ */
 #include "MK60DZ10.h"
 #include <stdint.h>
 
@@ -7,8 +21,6 @@
 #define C4 0xA40u
 
 #define C_ALL 0xAC0u
-#define DISPLAY_PORTA_MASK 0x500u
-#define DISPLAY_PORTD_MASK 0xF300u
 #define SIGNAL_MASK 0x4000000u
 #define DEC_POINT_D 0x4000
 
@@ -83,16 +95,9 @@
         PTA->PDOR = GPIO_PDOR_PDO(c_pos | 0); \
     } while (0)
 
-#define DISPLAY_CLEAR() \
-	do { \
-		PTA->PCOR = GPIO_PCOR_PTCO(DISPLAY_PORTA_MASK); \
-		PTD->PCOR = GPIO_PCOR_PTCO(DISPLAY_PORTD_MASK); \
-		PTA->PCOR = GPIO_PCOR_PTCO(C_ALL); \
-	} while (0)
-
-// GLOBAL VARIABLES
+// distance between object/obstacle and sensor
 float distance = 0.0f;
-int distance_delay = 0;
+
 /**
  * @brief Custom delay.
  *
@@ -141,7 +146,7 @@ void PORT_init() {
 	PTD->PDDR = GPIO_PDDR_PDD(0xF300);
 	PTD->PDOR = GPIO_PDOR_PDO(0x0);
 
-	NVIC_ClearPendingIRQ(PORTA_IRQn);	// echo interrupt
+	NVIC_ClearPendingIRQ(PORTA_IRQn);  // echo interrupt
 	NVIC_EnableIRQ(PORTA_IRQn);
 }
 
@@ -154,20 +159,20 @@ void PORT_init() {
  * program to calculate distance of obstacle via ECHO port.
  */
 void PIT_init() {
-	SIM->SCGC6 |= SIM_SCGC6_PIT_MASK;	// PIT clock enable
+	SIM->SCGC6 |= SIM_SCGC6_PIT_MASK;  // PIT clock enable
 
 	PIT->MCR = 0;
 	PIT->CHANNEL[0].LDVAL = PIT_LDVAL_TSV(SIGNAL_TRIG_DELAY); // 500 cycles for 10us signal
-	PIT->CHANNEL[0].TCTRL |= PIT_TCTRL_TIE_MASK;			  // enable interrupt
+	PIT->CHANNEL[0].TCTRL |= PIT_TCTRL_TIE_MASK;              // enable interrupt
 
 	PIT->CHANNEL[1].LDVAL = PIT_LDVAL_TSV(SIGNAL_ECHO_DELAY); // max echo timer value
 
 	PIT->CHANNEL[2].LDVAL = PIT_LDVAL_TSV(MEASUREMENT_DELAY); // delay between measurements
-	PIT->CHANNEL[2].TCTRL |= PIT_TCTRL_TIE_MASK;			  // enable interrupt
+	PIT->CHANNEL[2].TCTRL |= PIT_TCTRL_TIE_MASK;              // enable interrupt
 
 	// setup interrupts
-	NVIC_ClearPendingIRQ(PIT0_IRQn);	// timer to generate ultrasonic signal
-	NVIC_ClearPendingIRQ(PIT2_IRQn);	// timer of pause between measurements
+	NVIC_ClearPendingIRQ(PIT0_IRQn);   // timer to generate ultrasonic signal
+	NVIC_ClearPendingIRQ(PIT2_IRQn);   // timer of pause between measurements
 	NVIC_EnableIRQ(PIT0_IRQn);
 	NVIC_EnableIRQ(PIT2_IRQn);
 }
@@ -252,8 +257,8 @@ void update_display() {
  * @brief Start generating ultrasonic signal from TRIG pin.
  */
 void start_ultrasonic() {
-	PTA->PSOR = GPIO_PDOR_PDO(SIGNAL_MASK);			// start generating signal
-	PIT->CHANNEL[0].TCTRL |= PIT_TCTRL_TEN_MASK;	// enable timer
+	PTA->PSOR = GPIO_PDOR_PDO(SIGNAL_MASK);         // start generating signal
+	PIT->CHANNEL[0].TCTRL |= PIT_TCTRL_TEN_MASK;    // enable timer
 }
 
 /**
@@ -316,3 +321,4 @@ int main(void)
 
 	return 0;
 }
+/* main.c */
