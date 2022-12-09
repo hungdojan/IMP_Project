@@ -1,0 +1,6 @@
+.ccls-cache/
+docs/*
+!docs/resources/
+!docs/*.tex
+!docs/*.bib
+!docs/*.bst
