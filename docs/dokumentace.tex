@@ -4,15 +4,11 @@
 \usepackage[hidelinks]{hyperref}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
-\usepackage{listings}
-\usepackage{xcolor}
 \usepackage[perpage]{footmisc}
 \usepackage{graphicx}
 
 \graphicspath{ {./resources/} }
 
-\definecolor{gray}{rgb}{0.95,0.95,0.95}
-\definecolor{darkred}{rgb}{0.545,0,0}
 
 \title{Dokumentace k projektu z IMP \\
         \large Měření vzdálenosti ultrazvukovým senzorem}
@@ -33,6 +29,11 @@
 
     \section{Zapojení HW}
     \label{sec:circuit_diagram}
+    \begin{figure}[ht!]
+        \centering
+        \includegraphics[width=280pt]{circuit}
+        \caption{Zapojení systému}
+    \end{figure}
 
     \section{Implementace}
     \subsection{Hlavní program}
@@ -40,7 +41,7 @@
     že ultrazvukový senzor i sedmi-segmentový displej jsou zapojený na programovatelných GPIO pinech portů \textbf{A} a \textbf{D}.
     Následně se inicializuje časový modul \textbf{PIT}, ve kterém se aktivují tři ze čtych kanálů. První kanál slouží k odpočtu 10 $\mu$s
     při generování signálu \emph{TRIG}. Druhý kanál uchovává délku pulzu mezi nástupnou a sestupnout hranou signálu \emph{ECHO}. Výsledek pak slouží
-    k samotnému výpočtu vzdálenosti. A poslední třetí kanál opožďuje čas mezi jednotlivými měřěními (o 100ms).
+    k samotnému výpočtu vzdálenosti. A poslední třetí kanál opožďuje čas mezi jednotlivými měřěními (o 100 ms).
 
     V hlavní funkci programu se zapne signál \emph{TRIG} společně s prvním časovačem a následně se program přesune do
     nekonečné smyčky, ve které aktualizuje/zobrazuje vypočítanou vzdálenost na displeji.
@@ -51,10 +52,11 @@
     určuje hodnota cifry a \verb|c_pos| určuje pozici na displeji.
 
     \subsection{Práce se ultrazvukovým senzorem}
-    Celá práce s ultrazvukovým senzorem je řízená přes \textbf{PIT} modul a portem \textbf{A}. Nejprve je vygenerovaný signál \emph{TRIG} po dobu 10ms,
+    Celá práce s ultrazvukovým senzorem je řízená přes \textbf{PIT} modul a portem \textbf{A}. Nejprve je vygenerovaný signál \emph{TRIG} po dobu 10 $\mu$s,
     poté se čeká na nástupnou hranu signálu \emph{ECHO}. Po přijetí tohoto signálu se zapne \textbf{PIT1} časovač, který se zastaví až po přijetí
     sestupné hrany. Počet taktů se pak převedou na uběhnutý čas v $\mu$s a hodnota se vydělí číslem 58\footnote{viz. dokumentace \url{https://www.robot-electronics.co.uk/htm/srf05tech.htm}}.
     Výsledek je uložen do globální proměnné \verb|distance|.
+
     Paralelně s tímto jede třetí časovač \textbf{PIT2}, který po vypršení časového limitu opět vygeneruje \emph{TRIG} signál a měřění začne znovu.
 
     \subsection{Diagramy}
@@ -65,11 +67,21 @@
     \end{figure}
     \begin{figure}[ht!]
         \centering
-        \includegraphics[width=200pt]{program}
+        \includegraphics[width=150pt]{program}
         \caption{Struktura programu}
     \end{figure}
-    \clearpage
+    \newpage
 
     \section{Závěr}
-    % TODO:
+    Během testování senzor z nějakého neznámého důvodu vracel nižší hodnotu než se očekávalo. Například pro 16 cm senzor naměřil pouhých 13 cm.
+    Prvním pokusem o zpřesnění výpočtu bylo změnou konstanty pro výpočet vzdálenosti z 58 na 50. Po této úpravě došlo k zlepšení výstupních hodnot.
+    Nakonec jsem vrátil konstantu zpátky na 58 a raději násobil počet taktů z \textbf{PIT} sedm šestin krát. Důvodem může být \emph{Debug shift}
+    nastavené ve vývojovém prostředí, který způsobilo zpomalení \textbf{PIT} modulu. Tuto teorii jsem bohužel nedokázal potvrdit.
+    
+    Při implementaci projektu bylo problémové též rozjetí displeje z důvodu rozmístění \emph{GPIO} portů na periferii \textbf{P1}.
+    Šest pinů bylo umístěné na portu \textbf{A} a druhá polovina na portu \textbf{D}. Jinak byl projekt vcelku velice jednoduchý a zábavný. 
+
+    \section{Doplňující odkazy}
+    Odkaz na video: \url{https://drive.google.com/file/d/1qnb5OsGO1FpfHTN3c1mjMN9AdAEpws3M/view?usp=share_link}
+
 \end{document}

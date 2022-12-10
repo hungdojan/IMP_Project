@@ -24,10 +24,19 @@
 #define SIGNAL_MASK 0x4000000u
 #define DEC_POINT_D 0x4000
 
-#define SIGNAL_TRIG_DELAY 0x1F3
-#define SIGNAL_ECHO_DELAY 0x16E35
+#define SIGNAL_TRIG_DELAY 0x01F3u
+#define SIGNAL_ECHO_DELAY 0x16E35Fu
 // value must be greater than 50ms for optimal measuring
 #define MEASUREMENT_DELAY 0x4C4B3F  // 100ms between measurements
+
+/* I have no idea why my code doesn't work but by multiplying
+ * the time from PIT peripheral with 7/6 it returns more accurate
+ * results. Maybe it has something to do with debug mode? I don't really know.
+ * So I'm gonna leave it here for now. If somebody finds a fix let me know please.
+ */
+#define RANDOM_CONSTANT_THAT_IMPROVE_MEASUREMENT_IN_DEBUG_MODE 7 / 6
+// value used for calculation distance given time in us
+#define DISTANCE_CONSTANT 58
 
 #define DIGIT_1(c_pos) \
     do { \
@@ -96,7 +105,8 @@
     } while (0)
 
 // distance between object/obstacle and sensor
-float distance = 0.0f;
+//double distance = 0.0;
+double distance = 0;
 
 /**
  * @brief Custom delay.
@@ -116,6 +126,9 @@ void delay(long long bound) {
  * for this pin are set.
  */
 void PORT_init() {
+//    MCG->C4     |= ( MCG_C4_DMX32_MASK | MCG_C4_DRST_DRS(0x01) );
+    SIM->CLKDIV1  |= SIM_CLKDIV1_OUTDIV1(0x00);
+    WDOG->STCTRLH &= ~WDOG_STCTRLH_WDOGEN_MASK;
 	SIM->SCGC5 = (SIM_SCGC5_PORTA_MASK | SIM_SCGC5_PORTD_MASK);  // Turn on clocks for PORTA and PORTD
 
 	// set GPIO pins of ports A and D for 7-segment display
@@ -137,8 +150,7 @@ void PORT_init() {
     PORTA->PCR[26] = (0 | PORT_PCR_MUX(0x01));  // TRIG 37
     PORTA->PCR[24] = (0 | PORT_PCR_ISF_MASK  |
     					  PORT_PCR_MUX(0x01) |
-    					  PORT_PCR_IRQC(0xB) |
-						  PORT_PCR_DSE_MASK);   // ECHO 39
+    					  PORT_PCR_IRQC(0xB));
 
     // setup port directions and default values
 	PTA->PDDR = GPIO_PDDR_PDD(0x4000FC0);
@@ -166,14 +178,17 @@ void PIT_init() {
 	PIT->CHANNEL[0].TCTRL |= PIT_TCTRL_TIE_MASK;              // enable interrupt
 
 	PIT->CHANNEL[1].LDVAL = PIT_LDVAL_TSV(SIGNAL_ECHO_DELAY); // max echo timer value
+	PIT->CHANNEL[1].TCTRL |= PIT_TCTRL_TIE_MASK;              // enable interrupt
 
 	PIT->CHANNEL[2].LDVAL = PIT_LDVAL_TSV(MEASUREMENT_DELAY); // delay between measurements
 	PIT->CHANNEL[2].TCTRL |= PIT_TCTRL_TIE_MASK;              // enable interrupt
 
 	// setup interrupts
 	NVIC_ClearPendingIRQ(PIT0_IRQn);   // timer to generate ultrasonic signal
+	NVIC_ClearPendingIRQ(PIT1_IRQn);   // echo timeout
 	NVIC_ClearPendingIRQ(PIT2_IRQn);   // timer of pause between measurements
 	NVIC_EnableIRQ(PIT0_IRQn);
+	NVIC_EnableIRQ(PIT1_IRQn);
 	NVIC_EnableIRQ(PIT2_IRQn);
 }
 
@@ -242,14 +257,14 @@ void update_display() {
 	}
 
 	// turn on segments
-	set_digit(c4, 4);
+	set_digit(c1, 1);
+	delay(100);
+	set_digit(c2, 2);
 	delay(100);
 	set_digit(c3, 3);
 	PTD->PSOR = GPIO_PSOR_PTSO(DEC_POINT_D);
 	delay(100);
-	set_digit(c2, 2);
-	delay(100);
-	set_digit(c1, 1);
+	set_digit(c4, 4);
 	delay(100);
 }
 
@@ -257,7 +272,7 @@ void update_display() {
  * @brief Start generating ultrasonic signal from TRIG pin.
  */
 void start_ultrasonic() {
-	PTA->PSOR = GPIO_PDOR_PDO(SIGNAL_MASK);         // start generating signal
+	PTA->PSOR = GPIO_PSOR_PTSO(SIGNAL_MASK);         // start generating signal
 	PIT->CHANNEL[0].TCTRL |= PIT_TCTRL_TEN_MASK;    // enable timer
 }
 
@@ -270,17 +285,26 @@ void PIT0_IRQHandler(void) {
 
 	// clear interrupt flags and reset timer
 	PIT->CHANNEL[0].TFLG = 0x01;
-	PIT->CHANNEL[0].TCTRL &= PIT_TCTRL_TIE_MASK;
+	PIT->CHANNEL[0].TCTRL &= ~PIT_TCTRL_TEN_MASK;
 }
+
+/**
+ * @brief Second PIT channel interrupt handler (ECHO timeout).
+ */
+void PIT1_IRQHandler(void) {
+    // clear interrupt flag and turn off timer
+	distance = 999.9;
+    PIT->CHANNEL[1].TFLG = 0x01;
+    PIT->CHANNEL[1].TCTRL &= ~PIT_TCTRL_TEN_MASK;
+}
+
 /**
  * @brief Third PIT channel interrupt handler (delay between measurements).
  */
 void PIT2_IRQHandler(void) {
 	// clear interrupt flags and reset timer
 	PIT->CHANNEL[2].TFLG = 0x01;
-	PIT->CHANNEL[2].TCTRL &= PIT_TCTRL_TIE_MASK;
 	start_ultrasonic();
-	PIT->CHANNEL[2].TCTRL |= PIT_TCTRL_TEN_MASK;
 }
 
 /**
@@ -292,15 +316,19 @@ void PORTA_IRQHandler(void) {
 	if (PORTA->PCR[24] & PORT_PCR_ISF_MASK) {
 		if (PTA->PDIR & 0x1000000) {
 			// rising edge; echo start
-			PIT->CHANNEL[1].TCTRL = 0;
+			PIT->CHANNEL[1].TCTRL &= ~PIT_TCTRL_TEN_MASK;
 			PIT->CHANNEL[1].TCTRL |= PIT_TCTRL_TEN_MASK;
 		} else {
 			// falling edge; echo end
-			// get number of ticks value
-			uint32_t diff = SIGNAL_ECHO_DELAY - PIT->CHANNEL[1].CVAL;
-			PIT->CHANNEL[1].TCTRL = 0;
-			distance = diff * 0.02 / 58;
-			distance_delay = 0;
+            // check for echo timeout
+            if (!(PIT->CHANNEL[1].TCTRL & PIT_TCTRL_TEN_MASK)) {
+                distance = 999.9;
+            } else {
+                // get number of ticks value
+                uint32_t diff = (SIGNAL_ECHO_DELAY - PIT->CHANNEL[1].CVAL) * RANDOM_CONSTANT_THAT_IMPROVE_MEASUREMENT_IN_DEBUG_MODE;
+                PIT->CHANNEL[1].TCTRL &= ~PIT_TCTRL_TEN_MASK;
+                distance = diff * 0.02 / DISTANCE_CONSTANT;
+            }
 		}
 	}
 	// clear interrupt flags

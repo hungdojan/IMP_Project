@@ -2,5 +2,4 @@
 docs/*
 !docs/resources/
 !docs/*.tex
-!docs/*.bib
-!docs/*.bst
+!docs/*.pdf
