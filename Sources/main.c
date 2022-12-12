@@ -15,10 +15,10 @@
 #include "MK60DZ10.h"
 #include <stdint.h>
 
-#define C1 0x8C0u
-#define C2 0xA80u
-#define C3 0x2C0u
-#define C4 0xA40u
+#define C_1 0x8C0u
+#define C_2 0xA80u
+#define C_3 0x2C0u
+#define C_4 0xA40u
 
 #define C_ALL 0xAC0u
 #define SIGNAL_MASK 0x4000000u
@@ -29,12 +29,6 @@
 // value must be greater than 50ms for optimal measuring
 #define MEASUREMENT_DELAY 0x4C4B3F  // 100ms between measurements
 
-/* I have no idea why my code doesn't work but by multiplying
- * the time from PIT peripheral with 7/6 it returns more accurate
- * results. Maybe it has something to do with debug mode? I don't really know.
- * So I'm gonna leave it here for now. If somebody finds a fix let me know please.
- */
-#define RANDOM_CONSTANT_THAT_IMPROVE_MEASUREMENT_IN_DEBUG_MODE 7 / 6
 // value used for calculation distance given time in us
 #define DISTANCE_CONSTANT 58
 
@@ -105,8 +99,7 @@
     } while (0)
 
 // distance between object/obstacle and sensor
-//double distance = 0.0;
-double distance = 0;
+double distance = 0.0;
 
 /**
  * @brief Custom delay.
@@ -115,6 +108,16 @@ double distance = 0;
  */
 void delay(long long bound) {
 	for (long long i = 0; i < bound; i++);
+}
+
+/**
+ * @brief MCU initialization.
+ *
+ * Function initializes system clock.
+ */
+void MCU_init() {
+	MCG->C4 |= MCG_C4_DMX32_MASK | MCG_C4_DRST_DRS(0x1);
+	SIM->CLKDIV1 |= SIM_CLKDIV1_OUTDIV1(0x00);
 }
 
 /**
@@ -202,11 +205,11 @@ void set_digit(char digit, unsigned char digit_pos) {
 	uint32_t pos;
 	// get position of digit base on given parameter
 	switch(digit_pos) {
-		case 1:  { pos = C1; break; }
-		case 2:  { pos = C2; break; }
-		case 3:  { pos = C3; break; }
-		case 4:  { pos = C4; break; }
-		default: { pos = C1; break; }
+		case 1:  { pos = C_1; break; }
+		case 2:  { pos = C_2; break; }
+		case 3:  { pos = C_3; break; }
+		case 4:  { pos = C_4; break; }
+		default: { pos = C_1; break; }
 	}
 	PTA->PSOR = GPIO_PSOR_PTSO(C_ALL);
 	// display selected value on display
@@ -325,7 +328,7 @@ void PORTA_IRQHandler(void) {
                 distance = 999.9;
             } else {
                 // get number of ticks value
-                uint32_t diff = (SIGNAL_ECHO_DELAY - PIT->CHANNEL[1].CVAL) * RANDOM_CONSTANT_THAT_IMPROVE_MEASUREMENT_IN_DEBUG_MODE;
+                uint32_t diff = (SIGNAL_ECHO_DELAY - PIT->CHANNEL[1].CVAL);
                 PIT->CHANNEL[1].TCTRL &= ~PIT_TCTRL_TEN_MASK;
                 distance = diff * 0.02 / DISTANCE_CONSTANT;
             }
@@ -337,6 +340,7 @@ void PORTA_IRQHandler(void) {
 
 int main(void)
 {
+	MCU_init();
     PORT_init();
     PIT_init();
 

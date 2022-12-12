@@ -37,7 +37,7 @@
 
     \section{Implementace}
     \subsection{Hlavní program}
-    Program nejprve nainicializuje potřebné porty pro komunikaci se senzory. Ze zapojení \ref{sec:circuit_diagram} můžeme vidět,
+    Program nejprve nainicializuje modul časovače a potřebné porty pro komunikaci se senzory. Ze zapojení \ref{sec:circuit_diagram} můžeme vidět,
     že ultrazvukový senzor i sedmi-segmentový displej jsou zapojený na programovatelných GPIO pinech portů \textbf{A} a \textbf{D}.
     Následně se inicializuje časový modul \textbf{PIT}, ve kterém se aktivují tři ze čtych kanálů. První kanál slouží k odpočtu 10 $\mu$s
     při generování signálu \emph{TRIG}. Druhý kanál uchovává délku pulzu mezi nástupnou a sestupnout hranou signálu \emph{ECHO}. Výsledek pak slouží
@@ -75,8 +75,7 @@
     \section{Závěr}
     Během testování senzor z nějakého neznámého důvodu vracel nižší hodnotu než se očekávalo. Například pro 16 cm senzor naměřil pouhých 13 cm.
     Prvním pokusem o zpřesnění výpočtu bylo změnou konstanty pro výpočet vzdálenosti z 58 na 50. Po této úpravě došlo k zlepšení výstupních hodnot.
-    Nakonec jsem vrátil konstantu zpátky na 58 a raději násobil počet taktů z \textbf{PIT} sedm šestin krát. Důvodem může být \emph{Debug shift}
-    nastavené ve vývojovém prostředí, který způsobilo zpomalení \textbf{PIT} modulu. Tuto teorii jsem bohužel nedokázal potvrdit.
+    Nakonec bylo zapotřebí zinicializovat časový modul \textbf{MCG}, který nastavil frekvenci procesoru a poté již senzor měřil dobře (s konstantou 58).
     
     Při implementaci projektu bylo problémové též rozjetí displeje z důvodu rozmístění \emph{GPIO} portů na periferii \textbf{P1}.
     Šest pinů bylo umístěné na portu \textbf{A} a druhá polovina na portu \textbf{D}. Jinak byl projekt vcelku velice jednoduchý a zábavný. 
