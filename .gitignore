@@ -3,3 +3,4 @@ docs/*
 !docs/resources/
 !docs/*.tex
 !docs/*.pdf
+!docs/*.md
